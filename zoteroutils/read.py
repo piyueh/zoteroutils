@@ -377,6 +377,7 @@ def get_all_doc_attachments(conn: ConnType, attachment: int, prefix: _PathLike =
     results: pandas.Series = results.apply(lambda x: x["key"].joinpath(x["path"]), 1)
     results: pandas.core.groupby.SeriesGroupBy = results.groupby(level=0)
     results: pandas.Series = results.aggregate(lambda x: x.values.tolist())
+    results: pandas.Series = results.apply(lambda x: x[0] if len(x) == 1 else x, 1)
     results: pandas.DataFrame = results.to_frame("attachment path")
 
     return results
