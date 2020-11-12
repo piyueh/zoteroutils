@@ -85,7 +85,7 @@ class Database:
         """A dict of (int, str) of the mapping between creator type id -> string name."""
         return self._maps.id2creatortype
 
-    def get_all_docs(self, abs_attach_path=True, simplify_author=True):
+    def get_docs(self, itemIDs=None, abs_attach_path=True, simplify_author=True):
         """A pandas.Dataframe of all documents with brief information.
 
         Parameters
@@ -102,17 +102,22 @@ class Database:
         from . import read
         from . import process
         with self._engine.connect() as conn:
-            types = read.get_all_doc_types(conn, **self.doctype2id)
-            titles = read.get_all_doc_titles(conn, **self.doctype2id, **self.field2id)
-            pubs = read.get_all_doc_publications(conn, **self.doctype2id, **self.field2id)
-            years = read.get_all_doc_years(conn, **self.doctype2id, **self.field2id)
-            added = read.get_all_doc_added_dates(conn, **self.doctype2id, **self.field2id)
-            authors = read.get_all_doc_authors(conn, **self.doctype2id, **self.creatortype2id)
+            types = read.get_doc_types(conn, itemIDs=itemIDs, **self.doctype2id)
+            titles = read.get_doc_titles(conn, itemIDs=itemIDs, **self.doctype2id, **self.field2id)
+            pubs = read.get_doc_publications(
+                conn, itemIDs=itemIDs, **self.doctype2id, **self.field2id)
+            years = read.get_doc_years(
+                conn, itemIDs=itemIDs, **self.doctype2id, **self.field2id)
+            added = read.get_doc_added_dates(
+                conn, itemIDs=itemIDs, **self.doctype2id, **self.field2id)
+            authors = read.get_doc_authors(
+                conn, itemIDs=itemIDs, **self.doctype2id, **self.creatortype2id)
 
             if abs_attach_path:
-                atts = read.get_all_doc_attachments(conn, prefix=self.storage, **self.doctype2id)
+                atts = read.get_doc_attachments(
+                    conn, itemIDs=itemIDs, prefix=self.storage, **self.doctype2id)
             else:
-                atts = read.get_all_doc_attachments(conn, **self.doctype2id)
+                atts = read.get_doc_attachments(conn, itemIDs=itemIDs, **self.doctype2id)
 
         results = authors.join([types, titles, pubs, years, added, atts], None, "outer").fillna("")
 

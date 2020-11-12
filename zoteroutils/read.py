@@ -10,8 +10,10 @@
 Functions in this module are those related to reading data from SQLite database.
 """
 # standard libraries
+from re import sub as _sub
 from pathlib import Path as _Path
 from typing import List as _List
+from typing import Optional as _Optional
 from typing import Sequence as _Sequence
 from typing import Callable as _Callable
 from typing import Union as _Union
@@ -188,7 +190,7 @@ def _query_factory(
         A function with a signature of `(sqlachemy.engine.Connection) -> pandas.Series`.
     """
 
-    def func(conn: ConnType, **mapping) -> pandas.Series:
+    def func(conn: ConnType, itemIDs: _Optional[_Sequence[str]] = None, **mapping) -> pandas.Series:
         """Returns a list of all items' {0}s.
 
         Note
@@ -200,6 +202,8 @@ def _query_factory(
         ----------
         conn : sqlalchemy.engine.Connection
             The connection object to the database.
+        itemIDs : list-like of str or None
+            The itemID of interest. If None, consider all items.
         **mapping : keyword-values
             The mapping from required keys to values used in query strings.
 
@@ -209,7 +213,12 @@ def _query_factory(
             All items' {0}s, where the indices are the `itemID`s, and it only has one column.
         """
 
-        results: pandas.DataFrame = pandas.read_sql_query(query.format(**mapping), conn)
+        if itemIDs is not None:
+            Q = _sub("WHERE", "WHERE items.itemID in ({}) AND".format(", ".join(itemIDs)), query)
+        else:
+            Q = query
+
+        results: pandas.DataFrame = pandas.read_sql_query(Q.format(**mapping), conn)
         results: pandas.DataFrame = results.set_index("itemID").rename({org_tag: new_tag}, axis=1)
         results: pandas.DataFrame = after(results)
         return results
@@ -221,7 +230,7 @@ def _query_factory(
 
 
 # a function to get the document types of all documents
-get_all_doc_types: _Callable[[ConnType, int], pandas.Series] = _query_factory(
+get_doc_types: _Callable[[ConnType, int], pandas.Series] = _query_factory(
     """
         SELECT items.itemID, itemTypes.typeName
         FROM items, itemTypes
@@ -234,7 +243,7 @@ get_all_doc_types: _Callable[[ConnType, int], pandas.Series] = _query_factory(
 )
 
 # a function to get the document titles of all documents
-get_all_doc_titles: _Callable[[ConnType, int], pandas.Series] = _query_factory(
+get_doc_titles: _Callable[[ConnType, int], pandas.Series] = _query_factory(
     """
         SELECT items.itemID, itemDataValues.value
         FROM items, itemData, itemDataValues
@@ -249,7 +258,7 @@ get_all_doc_titles: _Callable[[ConnType, int], pandas.Series] = _query_factory(
 )
 
 # a function to get the publication titles of all documents
-get_all_doc_publications: _Callable[[ConnType, int], pandas.Series] = _query_factory(
+get_doc_publications: _Callable[[ConnType, int], pandas.Series] = _query_factory(
     """
         SELECT items.itemID, itemDataValues.value
         FROM items, itemData, itemDataValues
@@ -269,7 +278,7 @@ get_all_doc_publications: _Callable[[ConnType, int], pandas.Series] = _query_fac
 """
 
 # a function to get the publish years of all documents
-get_all_doc_years: _Callable[[ConnType, int], pandas.Series] = _query_factory(
+get_doc_years: _Callable[[ConnType, int], pandas.Series] = _query_factory(
     """
         SELECT items.itemID, itemDataValues.value
         FROM items, itemData, itemDataValues
@@ -285,14 +294,17 @@ get_all_doc_years: _Callable[[ConnType, int], pandas.Series] = _query_factory(
 )
 
 # a function to get the date of when each doc was added to the database
-get_all_doc_added_dates: _Callable[[ConnType, int], pandas.Series] = _query_factory(
+get_doc_added_dates: _Callable[[ConnType, int], pandas.Series] = _query_factory(
     "SELECT items.itemID, items.dateAdded FROM items\n" +
     "WHERE items.itemTypeID <> {attachment} AND items.itemTypeID <> {note};",
     "dateAdded", "time added"
 )
 
 
-def get_all_doc_authors(conn: ConnType, attachment: int, note: int, author: int, **kwargs: int):
+def get_doc_authors(
+        conn: ConnType, attachment: int, note: int, author: int,
+        itemIDs: _Optional[_Sequence[str]] = None, **kwargs: int
+):
     """Returns the last names of the authors of all documents.
 
     Parameters
@@ -305,6 +317,8 @@ def get_all_doc_authors(conn: ConnType, attachment: int, note: int, author: int,
         The ID of the item type *note*.
     author : int
         The ID of the creator type *author*.
+    itemIDs : list-like of str or None
+        The itemID of interest. If None, consider all items.
     **kwargs : int
         Not used. Just to conform the signature with other similar functions.
 
@@ -327,6 +341,9 @@ def get_all_doc_authors(conn: ConnType, attachment: int, note: int, author: int,
             creators.creatorID = itemCreators.creatorID
     """.format(attachment=attachment, note=note, author=author)
 
+    if itemIDs is not None:
+        query = _sub("WHERE", "WHERE items.itemID in ({}) AND".format(", ".join(itemIDs)), query)
+
     results: pandas.DataFrame = pandas.read_sql_query(query, conn)
     results: pandas.DataFrame = results.sort_values(["itemID", "orderIndex"])
     results: pandas.DataFrame = results.set_index("itemID").drop(columns="orderIndex")
@@ -337,7 +354,10 @@ def get_all_doc_authors(conn: ConnType, attachment: int, note: int, author: int,
     return results
 
 
-def get_all_doc_attachments(conn: ConnType, attachment: int, prefix: _PathLike = "", **kwargs: int):
+def get_doc_attachments(
+        conn: ConnType, attachment: int, prefix: _PathLike = "",
+        itemIDs: _Optional[_Sequence[str]] = None, **kwargs: int
+):
     """Returns the paths to the attachments to all documents.
 
     Parameters
@@ -348,6 +368,8 @@ def get_all_doc_attachments(conn: ConnType, attachment: int, prefix: _PathLike =
         The ID of the item type *attachment*.
     prefix : str, pathlib.Path, or path-like
         The path prefix to prepend.
+    itemIDs : list-like of str or None
+        The itemID of interest. If None, consider all items.
     **kwargs : int
         Not used. Just to conform the signature with other similar functions.
 
@@ -366,6 +388,12 @@ def get_all_doc_attachments(conn: ConnType, attachment: int, prefix: _PathLike =
             items.itemTypeID = {attachment} AND
             itemAttachments.itemID = items.itemID
     """.format(attachment=attachment)
+
+    if itemIDs is not None:
+        query = _sub(
+            "WHERE", "WHERE itemAttachments.parentitemID in ({}) AND".format(", ".join(itemIDs)),
+            query
+        )
 
     results: pandas.DataFrame = pandas.read_sql_query(query, conn)
     results: pandas.DataFrame = results.rename(columns={"parentItemID": "itemID"})
