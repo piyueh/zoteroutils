@@ -7,10 +7,11 @@
 # Distributed under terms of the BSD 3-Clause license.
 
 """Functions that process data."""
-from typing import Sequence as _Sequence
+import typing
+import pandas
 
 
-def authors_agg(data: _Sequence[str]) -> str:
+def authors_agg(data: typing.Sequence[str]) -> str:
     """Combine a list of authors's last names based on the numbers of authors.
 
     No author => ""
@@ -38,3 +39,8 @@ def authors_agg(data: _Sequence[str]) -> str:
         return "{0[0]} and {0[1]}".format(data)
 
     return "{} et al.".format(data[0])
+
+
+def extract_year(data: typing.Union[pandas.Series, pandas.DataFrame]):
+    """Extract only the year from date-time strings."""
+    return data.replace(r"(?P<year>\d{4}).*", r"\g<year>", regex=True)

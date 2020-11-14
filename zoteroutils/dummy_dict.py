@@ -7,14 +7,14 @@
 # Distributed under terms of the BSD 3-Clause license.
 
 """A tirvial dict-like object in which keys can be accessed ad attributes."""
-from typing import Any as _Any
-from collections import UserDict as _UserDict
+import typing
+from collections import UserDict
 
 
-class DummyDict(_UserDict):  # pylint: disable=too-many-ancestors
-    """A tirvial dict-like object in which keys can be accessed ad attributes."""
+class DummyDict(UserDict):  # pylint: disable=too-many-ancestors
+    """A tirvial dict-like object in which keys can be accessed as attributes."""
 
-    def __setattr__(self, name: str, value: _Any):
+    def __setattr__(self, name: str, value: typing.Any):
         try:
             super().__setitem__(name, value)
         except RecursionError:
@@ -31,3 +31,10 @@ class DummyDict(_UserDict):  # pylint: disable=too-many-ancestors
             super().__delitem__(name)
         except KeyError as err:
             raise AttributeError from err
+
+    def __str__(self):
+        s = "Type: zoteroutils.misc.DummyDict"
+
+        for k, v in self.data.items():
+            s += "\n    {0}: {1}".format(str(k), str(v))
+        return s
